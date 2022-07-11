@@ -1887,5 +1887,38 @@ const char* TEXT_std_stack_wat = ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n"
 "  (local.get $inc)\n"
 "  return\n"
 ")\n";
+const char* TEXT_std_zig = "inline fn w_arr_insert(comptime T: type, arr: std.ArrayList(T), i: c_int, x: T) void {\n"
+"  arr.insert(i, x);\n"
+"}\n"
+"inline fn w_arr_remove(comptime T: type, arr: std.ArrayList(T), i: c_int, n: c_int) void {\n"
+"  const newlen = arr.items.len - n;\n"
+"  for (arr.items[i..newlen] |*b, j| b.* = arr.items[i + n + j];\n"
+"  for (arr.items[newlen..] |*b| b.* = undefined;\n"
+"  arr.items.len = newlen;\n"
+"}\n"
+"inline fn w_arr_slice(comptime T: type, arr: std.ArrayList(T), i: c_int, n: c_int) std.ArrayList(T) {\n"
+"  return std.ArrayList(T).fromOwnedSlice(arr.allocator, arr.items[i .. i + n]);\n"
+"}\n"
+"inline fn w_map_get(K: type, V: type, m: std.HashMap(K, V), k: K, default: V) V {\n"
+"  return m.get(k) orelse default;\n"
+"}\n"
+"inline fn w_vec_init(comptime T: type, comptime N: usize, v: T) [N]T {\n"
+"  const vec = [_]T{v} ** N;\n"
+"  return vec;\n"
+"}\n";
+// template <typename T>
+// inline void w_arr_insert (std::vector<T>* arr, int i, T x){arr->insert(arr->begin()+i,x);}
+
+// template <typename T>
+// inline void w_arr_remove (std::vector<T>* arr, int i, int n){arr->erase(arr->begin()+i,arr->begin()+i+n);}
+
+// template <typename T>
+// inline std::vector<T>* w_arr_slice (std::vector<T>* arr, int i, int n){return new std::vector<T>(arr->begin()+i,arr->begin()+i+n);}
+
+// template <typename K, typename V>
+// inline V w_map_get (std::map<K,V>* m, K k, V defau){typename std::map<K,V>::iterator it = m->find(k);if (it != m->end()){return it->second;}return defau;}
+
+// template <typename T, std::size_t N>
+// inline std::array<T,N>* w_vec_init (T v){std::array<T,N>* vec = new std::array<T,N>;vec->fill(v);return vec;}
 
 #endif
