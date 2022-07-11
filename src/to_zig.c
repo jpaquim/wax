@@ -9,34 +9,33 @@
 str_t type_to_zig(type_t* typ){
   str_t out = str_new();
   if (typ->tag == TYP_INT){
-    str_add(&out,"int");
+    str_add(&out,"c_int");
   }else if (typ->tag == TYP_FLT){
-    str_add(&out,"float");
+    str_add(&out,"f32");
   }else if (typ->tag == TYP_STT){
-    str_add(&out,typ->u.name.data);
     str_add(&out,"*");
+    str_add(&out,typ->u.name.data);
   }else if (typ->tag == TYP_ARR){
-    str_add(&out,"std::vector<");
+    str_add(&out,"*std.ArrayList(");
     str_add(&out,type_to_zig(typ->elem0).data);
-    str_add(&out,">*");
+    str_add(&out,")");
   }else if (typ->tag == TYP_VEC){
-    str_add(&out,"std::array<");
-    str_add(&out,type_to_zig(typ->elem0).data);
-    str_add(&out,",");
+    str_add(&out,"*[");
     char s[32];
     snprintf(s,sizeof(s),"%d",typ->u.size);
     str_add(&out,s);
-    str_add(&out,">*");
+    str_add(&out,"]");
+    str_add(&out,type_to_zig(typ->elem0).data);
   }else if (typ->tag == TYP_MAP){
-    str_add(&out,"std::map<");
+    str_add(&out,"*std.HashMap(");
     str_add(&out,type_to_zig(typ->elem0).data);
     str_add(&out,",");
     str_add(&out,type_to_zig(typ->u.elem1).data);
-    str_add(&out,">*");
+    str_add(&out,")");
   }else if (typ->tag == TYP_STR){
-    str_add(&out,"std::string");
+    str_add(&out,"[]const u8");
   }else{
-    str_add(&out,"/*type?*/");
+    str_add(&out,"// type?\n");
   }
   return out;
 }
