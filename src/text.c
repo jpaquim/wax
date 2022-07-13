@@ -1905,7 +1905,11 @@ const char* TEXT_std_zig = "inline fn w_arr_insert(comptime T: type, arr: std.Ar
 "inline fn w_vec_init(comptime T: type, comptime N: usize, v: T) [N]T {\n"
 "  const vec = [_]T{v} ** N;\n"
 "  return vec;\n"
-"}\n";
+"}\n"
+"fn w_str_new(x: []const u8) ![]const u8 { size_t l = strlen(x);char* str = (char*)w_malloc(l);strncpy(str,x,l);str[l] = 0;return str;}\n"
+"fn w_str_cat(x: []const u8, y: []const u8) ![]const u8{ size_t l0 = strlen(x); const l1 = y.len; x = (char*)w_realloc(x,l0+l1+1);std.mem.copy(x[l0 .. l0 + l1], y[0..l1]); return x; }\n"
+"fn w_str_add(x: []const u8, y: c_int) ![]const u8{ const c = @intCast(u8, y); const l = x.len; x = (char*)w_realloc(x,l+2); x[l] = c; return x; }\n"
+"fn w_str_cpy(x: []const u8, i: c_int, l: c_int) ![]const u8{ var y = (char*)w_malloc(l+1);std.mem.copy(y,x[i..i+l]); return y;}\n";
 // template <typename T>
 // inline void w_arr_insert (std::vector<T>* arr, int i, T x){arr->insert(arr->begin()+i,x);}
 

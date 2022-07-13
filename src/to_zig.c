@@ -57,7 +57,7 @@ str_t zero_to_zig(type_t* typ){
   }else if (typ->tag == TYP_STR){
     str_add(&out,"\"\"");
   }else{
-    str_add(&out,"/*zero?*/");
+    str_add(&out,"// zero?\n");
   }
   return out;
 }
@@ -113,9 +113,9 @@ str_t expr_to_zig(expr_t* expr, int indent){
             expr->key == EXPR_XOR  ||
             expr->key == EXPR_SHL  || expr->key == EXPR_SHR
     ){
-    str_add(&out, "(");
+    str_add(&out, "@as(");
     str_add(&out, type_to_zig(expr->type).data );
-    str_add(&out, ")(");
+    str_add(&out, ", ");
     str_add(&out, expr_to_zig(CHILD1,-1).data );
     str_add(&out, expr->rawkey.data);
     str_add(&out, expr_to_zig(CHILD2,-1).data );
@@ -138,7 +138,7 @@ str_t expr_to_zig(expr_t* expr, int indent){
     str_add(&out, ")");
 
   }else if (expr->key == EXPR_FMOD){
-    str_add(&out, "fmod(");
+    str_add(&out, "@mod(");
     str_add(&out, expr_to_zig(CHILD1,-1).data );
     str_add(&out, ",");
     str_add(&out, expr_to_zig(CHILD2,-1).data );
@@ -150,49 +150,50 @@ str_t expr_to_zig(expr_t* expr, int indent){
     str_add(&out, expr_to_zig(CHILD1,-1).data );
     str_add(&out, ")");
   }else if (expr->key == EXPR_IF){
-    str_add(&out, "if(");
+    str_add(&out, "if (");
     str_add(&out, expr_to_zig(CHILD1,-1).data);
-    str_add(&out, "){\n");
+    str_add(&out, ") {\n");
     str_add(&out, expr_to_zig(CHILD2,indent).data);
     INDENT2(indent);
     str_add(&out, "}");
     if (CHILD3){
 
-      str_add(&out, "else{\n");
+      str_add(&out, "else {\n");
       str_add(&out, expr_to_zig(CHILD3,indent).data);
       INDENT2(indent);
       str_add(&out, "}");
     }
 
   }else if (expr->key == EXPR_TIF){
-    str_add(&out, "((");
+    str_add(&out, "if (");
     str_add(&out, expr_to_zig(CHILD1,-1).data);
-    str_add(&out, ")?(");
+    str_add(&out, ") (");
     str_add(&out, expr_to_zig(CHILD2,-1).data);
-    str_add(&out, "):(");
+    str_add(&out, ") else (");
     str_add(&out, expr_to_zig(CHILD3,-1).data);
-    str_add(&out, "))");
+    str_add(&out, ")");
 
   }else if (expr->key == EXPR_WHILE){
-    str_add(&out, "while(");
+    str_add(&out, "while (");
     str_add(&out, expr_to_zig(CHILD1,-1).data);
-    str_add(&out, "){\n");
+    str_add(&out, ") {\n");
     str_add(&out, expr_to_zig(CHILD2,indent).data);
     INDENT2(indent);
     str_add(&out, "}");
 
   }else if (expr->key == EXPR_FOR){
-    str_add(&out, "for(int ");
+    str_add(&out, "var ");
     str_add(&out, expr_to_zig(CHILD1,-1).data);
-    str_add(&out, "=(");
+    str_add(&out, ": c_int = (");
     str_add(&out, expr_to_zig(CHILD2,-1).data);
-    str_add(&out, ");");
+    str_add(&out, ");\n");
+    str_add(&out, "while (");
     str_add(&out, expr_to_zig(CHILD3,-1).data);
-    str_add(&out, ";");
+    str_add(&out, ") : (");
     str_add(&out, expr_to_zig(CHILD1,-1).data);
-    str_add(&out, "+=(");
+    str_add(&out, " += (");
     str_add(&out, expr_to_zig(CHILD4,-1).data);
-    str_add(&out, ")){\n");
+    str_add(&out, ")) {\n");
     str_add(&out, expr_to_zig(CHILDN,indent).data);
     INDENT2(indent);
     str_add(&out, "}");
@@ -254,9 +255,32 @@ str_t expr_to_zig(expr_t* expr, int indent){
 
 
   }else if (expr->key == EXPR_FUNC || expr->key == EXPR_FUNCHEAD){
-    str_add(&out, "inline ");
+    str_add(&out, "inline fn ");
 
-    list_node_t* it = expr->children.head;
+    str_t funcname = ((tok_t*)(CHILD1->term))->val;
+
+    str_add(&out, funcname.data);
+    str_add(&out, "(");
+    list_node_t* it = expr->children.head->next;
+    while(it){
+      expr_t* ex = (expr_t*)(it->data);
+      if (ex->key != EXPR_PARAM){
+        break;
+      }
+      if (it != expr->children.head->next){
+        str_add(&out,",");
+      }
+      // str_add(&out,ex->rawkey.data);
+      str_add(&out, ((tok_t*)(((expr_t*)(((expr_t*)(it->data))->children.head->data))->term))->val.data);
+      str_add(&out,": ");
+      str_add(&out,type_to_zig(  (type_t*)(((expr_t*)(((expr_t*)(it->data))->children.head->next->data))->term) ).data);
+
+      it = it->next;
+    }
+
+    str_add(&out, ") ");
+
+    it = expr->children.head;
     while(it){
       expr_t* ex = (expr_t*)(it->data);
       if (ex->key == EXPR_RESULT){
@@ -269,37 +293,13 @@ str_t expr_to_zig(expr_t* expr, int indent){
     }else{
       str_add(&out,"void");
     }
-    
-    str_add(&out, " ");
 
-    str_t funcname = ((tok_t*)(CHILD1->term))->val;
-
-    str_add(&out, funcname.data);
-    str_add(&out, "(");
-    it = expr->children.head->next;
-    while(it){
-      expr_t* ex = (expr_t*)(it->data);
-      if (ex->key != EXPR_PARAM){
-        break;
-      }
-      if (it != expr->children.head->next){
-        str_add(&out,",");
-      }
-      // str_add(&out,ex->rawkey.data);
-      str_add(&out,type_to_zig(  (type_t*)(((expr_t*)(((expr_t*)(it->data))->children.head->next->data))->term) ).data);
-      str_add(&out," ");
-      str_add(&out, ((tok_t*)(((expr_t*)(((expr_t*)(it->data))->children.head->data))->term))->val.data);
-
-      it = it->next;
-    }
     if (expr->key == EXPR_FUNC){
-      str_add(&out, "){\n");
+      str_add(&out, " {\n");
       str_add(&out, expr_to_zig(CHILDN,indent).data);
       INDENT2(indent);
       str_add(&out, "}\n");
       indent = -1;
-    }else{
-      str_add(&out, ")");
     }
 
   }else if (expr->key == EXPR_CALL){
@@ -345,28 +345,28 @@ str_t expr_to_zig(expr_t* expr, int indent){
     type_t* typl = CHILD1->type;
     type_t* typr = (type_t*)(CHILD2->term);
     if (typl->tag == TYP_INT && typr->tag == TYP_FLT){
-      str_add(&out, "((float)");
+      str_add(&out, "@intToFloat(f32, ");
       str_add(&out, expr_to_zig(CHILD1,-1).data);
       str_add(&out, ")");
     }else if (typl->tag == TYP_FLT && typr->tag == TYP_INT){
-      str_add(&out, "((int)");
+      str_add(&out, "@floatToInt(c_int, ");
       str_add(&out, expr_to_zig(CHILD1,-1).data);
       str_add(&out, ")");
     }else if (typl->tag == TYP_INT && typr->tag == TYP_STR){
-      str_add(&out, "std::to_string(");
+      str_add(&out, "@as([]const u8, ");
       str_add(&out, expr_to_zig(CHILD1,-1).data);
       str_add(&out, ")");
     }else if (typl->tag == TYP_FLT && typr->tag == TYP_STR){
-      str_add(&out, "std::to_string(");
+      str_add(&out, "@as([]const u8, ");
       str_add(&out, expr_to_zig(CHILD1,-1).data);
       str_add(&out, ")");
     }else if (typl->tag == TYP_STR && typr->tag == TYP_INT){
-      str_add(&out, "std::stoi(");
+      str_add(&out, "std.fmt.parseInt(c_int, ");
       str_add(&out, expr_to_zig(CHILD1,-1).data);
       str_add(&out, ")");
     
     }else if (typl->tag == TYP_STR && typr->tag == TYP_FLT){
-      str_add(&out, "std::stof(");
+      str_add(&out, "std.fmt.parseFloat(f32, ");
       str_add(&out, expr_to_zig(CHILD1,-1).data);
       str_add(&out, ")");
     }else{
@@ -382,9 +382,9 @@ str_t expr_to_zig(expr_t* expr, int indent){
       str_add(&out,expr_to_zig(CHILD1,-1).data);
     }
   }else if (expr->key == EXPR_STRUCT){
-    str_add(&out,"struct ");
+    str_add(&out,"const ");
     str_add(&out, ((tok_t*)(CHILD1->term))->val.data);
-    str_add(&out,"{\n");
+    str_add(&out," = struct {\n");
 
     list_node_t* it = expr->children.head->next;
 
@@ -402,37 +402,37 @@ str_t expr_to_zig(expr_t* expr, int indent){
       it = it->next;
     }
     INDENT2(indent);
-    str_add(&out,"}");
+    str_add(&out,"};");
 
   }else if (expr->key == EXPR_NOTNULL){
     str_add(&out,"(");
     str_add(&out, expr_to_zig(CHILD1,-1).data);
-    str_add(&out,"!=NULL)");
+    str_add(&out,"!= null)");
 
   }else if (expr->key == EXPR_SETNULL){
     if (!CHILD2){
       str_add(&out,"(");
       str_add(&out, expr_to_zig(CHILD1,-1).data);
-      str_add(&out,"=NULL");
+      str_add(&out,"= null");
     }else{
       if (CHILD1->type->tag == TYP_STT){
         str_add(&out,"((");
         str_add(&out,expr_to_zig(CHILD1,-1).data);
-        str_add(&out,")->");
+        str_add(&out,").");
         str_add(&out,expr_to_zig(CHILD2,-1).data);
-        str_add(&out,"=NULL)");
+        str_add(&out,"= null)");
       }else if (CHILD1->type->tag == TYP_ARR){
         str_add(&out,"((");
         str_add(&out,expr_to_zig(CHILD1,-1).data);
         str_add(&out,")[");
         str_add(&out,expr_to_zig(CHILD2,-1).data);
-        str_add(&out,"])=NULL");
+        str_add(&out,"]) = null");
       }else if (CHILD1->type->tag == TYP_VEC){
         str_add(&out,"((");
         str_add(&out,expr_to_zig(CHILD1,-1).data);
         str_add(&out,")[");
         str_add(&out,expr_to_zig(CHILD2,-1).data);
-        str_add(&out,"])=NULL");
+        str_add(&out,"]) = null");
 
       }
     }
@@ -441,21 +441,21 @@ str_t expr_to_zig(expr_t* expr, int indent){
     type_t* typ = (type_t*)(CHILD1->term);
 
     if (typ->tag == TYP_STT){
-      str_add(&out,"(new ");
       str_add(&out,typ->u.name.data);
-      str_add(&out,")");
+      str_add(&out,".init()");
 
     }else if (typ->tag == TYP_ARR){
       if (expr->children.len == 1){
-        str_add(&out,"(new std::vector<");
+        str_add(&out,"std.ArrayList(");
         str_add(&out,type_to_zig(typ->elem0).data);
-        str_add(&out,">)");
+        str_add(&out,").init(allocator)");
       }else{
-        str_add(&out,"(new std::vector<");
-        str_add(&out,type_to_zig(typ->elem0).data);
-        str_add(&out,">{");
+        str_add(&out,"blk: {\n");
+        str_add(&out,"var slice = .{");
+        int count = 0;
         list_node_t* it = expr->children.head->next;
         while (it){
+          count += 1;
           if (it != expr->children.head->next){
             str_add(&out,",");
           }
@@ -464,26 +464,33 @@ str_t expr_to_zig(expr_t* expr, int indent){
           str_add(&out,")");
           it = it->next;
         }
-        str_add(&out,"})");
+        str_add(&out,"};");
+        
+        str_add(&out,"break :blk std.ArrayList(");
+        str_add(&out,type_to_zig(typ->elem0).data);
+        str_add(&out,").initCapacity(allocator,");
+        char s[32];
+        snprintf(s,sizeof(s),"%d",count);
+        str_add(&out,");");
       }
 
     }else if (typ->tag == TYP_VEC){
       char s[32];
       snprintf(s,sizeof(s),"%d",typ->u.size);
       if (expr->children.len == 1){
-        str_add(&out,"w_vec_init<");
+        str_add(&out,"w_vec_init(");
         str_add(&out,type_to_zig(typ->elem0).data);
-        str_add(&out,",");
+        str_add(&out,", ");
         str_add(&out,s);
-        str_add(&out,">(");
+        str_add(&out,", ");
         str_add(&out,zero_to_zig(typ->elem0).data);
         str_add(&out,")");
       }else{
-        str_add(&out,"(new std::array<");
-        str_add(&out,type_to_zig(typ->elem0).data);
-        str_add(&out,",");
+        str_add(&out,"[");
         str_add(&out,s);
-        str_add(&out,">{");
+        str_add(&out,"]");
+        str_add(&out,type_to_zig(typ->elem0).data);
+        str_add(&out,"{");
         list_node_t* it = expr->children.head->next;
         while (it){
           if (it != expr->children.head->next){
@@ -494,71 +501,72 @@ str_t expr_to_zig(expr_t* expr, int indent){
           str_add(&out,")");
           it = it->next;
         }
-        str_add(&out,"})");
+        str_add(&out,"}");
       }
     }else if (typ->tag == TYP_MAP){
-      str_add(&out,"(new std::map<");
+      str_add(&out,"std.HashMap(");
       str_add(&out,type_to_zig(typ->elem0).data);
       str_add(&out,",");
       str_add(&out,type_to_zig(typ->u.elem1).data);
-      str_add(&out,">)");
+      str_add(&out,").init(allocator)");
 
     }else if (typ->tag == TYP_STR){
-      str_add(&out,"std::string(");
+      str_add(&out,"[]const u8{");
       if (CHILD2){
         str_add(&out,expr_to_zig(CHILD2,-1).data);
       }else{
         str_add(&out,"\"\"");
       }
-      str_add(&out,")");
+      str_add(&out,"}");
     }
   }else if (expr->key == EXPR_FREE){
     if (CHILD1->type->tag != TYP_STR){
-      str_add(&out,"delete ");
+      str_add(&out,"allocator.free(");
       str_add(&out,expr_to_zig(CHILD1,-1).data);
+      str_add(&out,")");
     }
   }else if (expr->key == EXPR_STRUCTGET){
     str_add(&out,"((");
     str_add(&out,expr_to_zig(CHILD1,-1).data);
-    str_add(&out,")->");
+    str_add(&out,").");
     str_add(&out,expr_to_zig(CHILD2,-1).data);
     str_add(&out,")");
 
   }else if (expr->key == EXPR_STRUCTSET){
-    str_add(&out,"((");
+    str_add(&out,"(");
     str_add(&out,expr_to_zig(CHILD1,-1).data);
-    str_add(&out,")->");
+    str_add(&out,").");
     str_add(&out,expr_to_zig(CHILD2,-1).data);
-    str_add(&out,")=");
+    str_add(&out," = ");
     str_add(&out,expr_to_zig(CHILD3,-1).data);
 
   }else if (expr->key == EXPR_VECGET){
-    str_add(&out,"((*(");
+    str_add(&out,"(");
     str_add(&out,expr_to_zig(CHILD1,-1).data);
-    str_add(&out,"))[");
+    str_add(&out,").items[");
     str_add(&out,expr_to_zig(CHILD2,-1).data);
     str_add(&out,"])");
   }else if (expr->key == EXPR_VECSET){
-    str_add(&out,"((*(");
+    str_add(&out,"(");
     str_add(&out,expr_to_zig(CHILD1,-1).data);
-    str_add(&out,"))[");
+    str_add(&out,").items[");
     str_add(&out,expr_to_zig(CHILD2,-1).data);
-    str_add(&out,"])=");
+    str_add(&out,"] = ");
     str_add(&out,expr_to_zig(CHILD3,-1).data);
 
   }else if (expr->key == EXPR_ARRGET){
-    str_add(&out,"((*(");
+    str_add(&out,"((");
     str_add(&out,expr_to_zig(CHILD1,-1).data);
-    str_add(&out,"))[");
+    str_add(&out,")[");
     str_add(&out,expr_to_zig(CHILD2,-1).data);
     str_add(&out,"])");
 
   }else if (expr->key == EXPR_ARRSET){
-    str_add(&out,"((*(");
+    str_add(&out,"((");
     str_add(&out,expr_to_zig(CHILD1,-1).data);
-    str_add(&out,"))[");
+    str_add(&out,")[");
     str_add(&out,expr_to_zig(CHILD2,-1).data);
-    str_add(&out,"])=");
+    str_add(&out,"] = ");
     str_add(&out,expr_to_zig(CHILD3,-1).data);
 
   }else if (expr->key == EXPR_ARRINS){
@@ -594,12 +602,12 @@ str_t expr_to_zig(expr_t* expr, int indent){
   }else if (expr->key == EXPR_ARRLEN){
     str_add(&out,"(");
     str_add(&out,expr_to_zig(CHILD1,-1).data);
-    str_add(&out,"->size())");
+    str_add(&out,".len)");
 
   }else if (expr->key == EXPR_MAPLEN){
     str_add(&out,"(");
     str_add(&out,expr_to_zig(CHILD1,-1).data);
-    str_add(&out,"->size())");
+    str_add(&out,".count())");
 
 
   }else if (expr->key == EXPR_MAPGET){
@@ -616,22 +624,22 @@ str_t expr_to_zig(expr_t* expr, int indent){
 
     str_add(&out,"(");
     str_add(&out,expr_to_zig(CHILD1,-1).data);
-    str_add(&out,")->erase(");
+    str_add(&out,").remove(");
     str_add(&out,expr_to_zig(CHILD2,-1).data);
     str_add(&out,"))");
 
   }else if (expr->key == EXPR_MAPSET){
-    str_add(&out,"((*(");
+    str_add(&out,"(");
     str_add(&out,expr_to_zig(CHILD1,-1).data);
-    str_add(&out,"))[");
+    str_add(&out,").getOrPut(");
     str_add(&out,expr_to_zig(CHILD2,-1).data);
-    str_add(&out,"])=");
+    str_add(&out,").value_ptr.* = ");
     str_add(&out,expr_to_zig(CHILD3,-1).data);
 
   }else if (expr->key == EXPR_STRLEN){
-    str_add(&out,"((");
+    str_add(&out,"(");
     str_add(&out,expr_to_zig(CHILD1,-1).data);
-    str_add(&out,").length())");
+    str_add(&out,").len");
 
   }else if (expr->key == EXPR_STRGET){
     str_add(&out,"(");
