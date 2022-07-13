@@ -45,7 +45,7 @@ str_t zero_to_zig(type_t* typ){
   if (typ->tag == TYP_INT){
     str_add(&out,"0");
   }else if (typ->tag == TYP_FLT){
-    str_add(&out,"0.0f");
+    str_add(&out,"0.0");
   }else if (typ->tag == TYP_STT){
     str_add(&out,"NULL");
   }else if (typ->tag == TYP_ARR){
@@ -70,10 +70,10 @@ str_t expr_to_zig(expr_t* expr, int indent){
 
   if (expr->key == EXPR_LET){
     
-    str_add(&out,type_to_zig( (type_t*)(CHILD2->term) ).data);
-    str_add(&out," ");
     str_add(&out, ((tok_t*)(CHILD1->term))->val.data);
-    str_add(&out,"=");
+    str_add(&out,": ");
+    str_add(&out,type_to_zig( (type_t*)(CHILD2->term) ).data);
+    str_add(&out," = ");
     str_add(&out,zero_to_zig( (type_t*)(CHILD2->term) ).data);
     
   }else if (expr->key == EXPR_SET){
@@ -89,14 +89,14 @@ str_t expr_to_zig(expr_t* expr, int indent){
     tok_t* tok = ((tok_t*)(expr->term));
     if (tok->tag == TOK_INT){
       if (tok->val.data[0] == '\''){
-        str_add(&out, "(int)");
+        str_add(&out, "@as(c_int, ");
       }
     }
     str_add(&out, tok->val.data);
-    if (tok->tag == TOK_FLT){
-      str_add(&out, "f");
+    if (tok->val.data[0] == '\''){
+      str_add(&out, ")");
     }
-  
+
   }else if (expr->key == EXPR_IADD || expr->key == EXPR_FADD ||
             expr->key == EXPR_ISUB || expr->key == EXPR_FSUB ||
             expr->key == EXPR_IMUL || expr->key == EXPR_FMUL ||
@@ -761,10 +761,10 @@ str_t tree_to_zig(str_t modname, expr_t* tree, map_t* functable, map_t* stttable
         if (ex2->key == EXPR_TERM){
           if (str_eq( &((tok_t*)(CHILD1->term))->val, ((tok_t*)(ex2->term))->val.data )){
             INDENT2(1);
-            str_add(&out,type_to_zig( (type_t*)(CHILD2->term) ).data);
-            str_add(&out," ");
             str_add(&out, ((tok_t*)(CHILD1->term))->val.data);
-            str_add(&out,"=");
+            str_add(&out,": ");
+            str_add(&out,type_to_zig( (type_t*)(CHILD2->term) ).data);
+            str_add(&out," = ");
             str_add(&out,expr_to_zig( (expr_t*)(ex1->children.head->next->data),-1).data);
 
             str_add(&out,";\n");
@@ -788,14 +788,6 @@ str_t tree_to_zig(str_t modname, expr_t* tree, map_t* functable, map_t* stttable
   func_t* fun = func_lookup(&mainstr,functable);
   if (fun != NULL){
     if (fun->params.len){
-    // var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    // defer _ = gpa.deinit();
-
-    // // global arena allocator
-    // var global_arena = std.heap.ArenaAllocator.init(gpa.allocator());
-    // defer global_arena.deinit();
-    // const allocator = global_arena.allocator();
-
       str_add(&out,"pub fn main() anyerror!void {\n");
       str_add(&out,"  var gpa = std.heap.GeneralPurposeAllocator(.{}){};\n");
       str_add(&out,"  defer _ = gpa.deinit();\n");
